@@ -1,0 +1,188 @@
+#! /usr/bin/env bash
+
+set -euo pipefail
+
+#### Detect Toolkit Project Root ####
+# if realpath is not available, create a semi-equivalent function
+command -v realpath >/dev/null 2>&1 || realpath() {
+  [[ $1 = /* ]] && echo "$1" || echo "$PWD/${1#./}"
+}
+SCRIPT_PATH="$(realpath "${BASH_SOURCE[0]}")"
+SCRIPT_DIR="$(dirname "$SCRIPT_PATH")"
+TOOLKIT_ROOT="$(realpath "$SCRIPT_DIR/..")"
+if [[ ! -d "$TOOLKIT_ROOT/bin" ]] || [[ ! -d "$TOOLKIT_ROOT/config" ]]; then
+  echo "ERROR: could not find root of overleaf-toolkit project (inferred project root as '$TOOLKIT_ROOT')"
+  exit 1
+fi
+
+function original_user_home() {
+  if [[ -n "${SUDO_USER:-}" ]] && command -v getent >/dev/null 2>&1; then
+    local home
+    home="$(getent passwd "$SUDO_USER" | cut -d: -f6 || true)"
+    if [[ -n "$home" ]]; then
+      echo "$home"
+      return
+    fi
+  fi
+
+  echo "$HOME"
+}
+
+function usage() {
+  echo "Usage: bin/restore-instance [OPTIONS] BACKUP_ARCHIVE"
+  echo ""
+  echo "Restore a backup created by bin/backup-instance."
+  echo ""
+  echo "By default this stops the Overleaf services first and refuses to overwrite"
+  echo "an existing local config/ or data/ directory that contains real state."
+  echo ""
+  echo "Options:"
+  echo "      --replace          Replace existing local config/ and data/ after making"
+  echo "                         a safety backup"
+  echo "  -d, --backup-dir DIR   Directory for safety backups when using --replace"
+  echo "                         (default: \$OVERLEAF_BACKUP_DIR or ~/Documents/overleaf-backups)"
+  echo "      --skip-stop        Do not stop services; only use this if they are already stopped"
+  echo "  -h, --help             Show this help"
+  echo ""
+  echo "Examples:"
+  echo "  sudo bin/restore-instance ~/Documents/overleaf-backups/overleaf-instance-20260615-180000.tar.gz"
+  echo "  sudo bin/restore-instance --replace ~/Documents/overleaf-backups/weekend.tar.gz"
+}
+
+function has_existing_state() {
+  local first_match=""
+  first_match="$(find "$TOOLKIT_ROOT/config" "$TOOLKIT_ROOT/data" \
+    -mindepth 1 ! -name .gitkeep -print -quit 2>/dev/null || true)"
+  [[ -n "$first_match" ]]
+}
+
+function validate_archive() {
+  local archive="$1"
+  local listing
+  listing="$(mktemp)"
+
+  if ! tar -tzf "$archive" > "$listing"; then
+    rm -f "$listing"
+    echo "ERROR: cannot read backup archive: $archive" >&2
+    exit 1
+  fi
+
+  if ! grep -Eq '^(config|data)(/|$)' "$listing"; then
+    rm -f "$listing"
+    echo "ERROR: archive does not contain config/ or data/ entries" >&2
+    exit 1
+  fi
+
+  if grep -Evq '^(config|data)(/|$)' "$listing"; then
+    rm -f "$listing"
+    echo "ERROR: archive contains paths outside config/ and data/" >&2
+    exit 1
+  fi
+
+  rm -f "$listing"
+}
+
+function __main__() {
+  local default_backup_dir
+  default_backup_dir="$(original_user_home)/Documents/overleaf-backups"
+
+  local backup_dir="${OVERLEAF_BACKUP_DIR:-$default_backup_dir}"
+  local replace="false"
+  local skip_stop="false"
+  local archive=""
+
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --replace)
+        replace="true"
+        shift
+        ;;
+      -d|--backup-dir)
+        if [[ $# -lt 2 ]]; then
+          echo "ERROR: missing value for $1" >&2
+          exit 1
+        fi
+        backup_dir="$2"
+        shift 2
+        ;;
+      --skip-stop)
+        skip_stop="true"
+        shift
+        ;;
+      -h|--help|help)
+        usage
+        exit
+        ;;
+      -*)
+        echo "ERROR: unrecognized argument '$1'" >&2
+        usage >&2
+        exit 1
+        ;;
+      *)
+        if [[ -n "$archive" ]]; then
+          echo "ERROR: only one backup archive may be provided" >&2
+          exit 1
+        fi
+        archive="$1"
+        shift
+        ;;
+    esac
+  done
+
+  if [[ -z "$archive" ]]; then
+    echo "ERROR: missing BACKUP_ARCHIVE" >&2
+    usage >&2
+    exit 1
+  fi
+  if [[ ! -f "$archive" ]]; then
+    echo "ERROR: backup archive does not exist: $archive" >&2
+    exit 1
+  fi
+
+  archive="$(realpath "$archive")"
+  case "$archive" in
+    "$TOOLKIT_ROOT/config/"*|"$TOOLKIT_ROOT/data/"*)
+      echo "ERROR: keep the backup archive outside config/ and data/ before restoring" >&2
+      exit 1
+      ;;
+  esac
+
+  validate_archive "$archive"
+
+  if has_existing_state && [[ "$replace" != "true" ]]; then
+    echo "ERROR: local config/ or data/ already contains state." >&2
+    echo "Use --replace to make a safety backup and replace it." >&2
+    exit 1
+  fi
+
+  if [[ "$skip_stop" == "true" ]]; then
+    echo "Skipping service stop. Make sure the Overleaf containers are already stopped."
+  else
+    echo "Stopping Overleaf services..."
+    "$TOOLKIT_ROOT/bin/stop"
+  fi
+
+  if [[ "$replace" == "true" ]] && has_existing_state; then
+    echo "Creating safety backup before restore..."
+    "$TOOLKIT_ROOT/bin/backup-instance" --skip-stop -d "$backup_dir"
+
+    echo "Removing existing local config/ and data/..."
+    rm -rf "$TOOLKIT_ROOT/config" "$TOOLKIT_ROOT/data"
+  fi
+
+  mkdir -p "$TOOLKIT_ROOT/config" "$TOOLKIT_ROOT/data"
+
+  echo "Restoring backup archive: $archive"
+  if ! tar -xzf "$archive" -C "$TOOLKIT_ROOT"; then
+    echo "ERROR: restore failed." >&2
+    echo "If this was a permissions error, rerun with sudo." >&2
+    exit 1
+  fi
+
+  mkdir -p "$TOOLKIT_ROOT/config" "$TOOLKIT_ROOT/data"
+  touch "$TOOLKIT_ROOT/config/.gitkeep" "$TOOLKIT_ROOT/data/.gitkeep"
+
+  echo "Restore complete. Start Overleaf with: bin/up -d"
+}
+
+__main__ "$@"

@@ -1,0 +1,132 @@
+#! /usr/bin/env bash
+
+set -euo pipefail
+
+#### Detect Toolkit Project Root ####
+# if realpath is not available, create a semi-equivalent function
+command -v realpath >/dev/null 2>&1 || realpath() {
+  [[ $1 = /* ]] && echo "$1" || echo "$PWD/${1#./}"
+}
+SCRIPT_PATH="$(realpath "${BASH_SOURCE[0]}")"
+SCRIPT_DIR="$(dirname "$SCRIPT_PATH")"
+TOOLKIT_ROOT="$(realpath "$SCRIPT_DIR/..")"
+if [[ ! -d "$TOOLKIT_ROOT/bin" ]] || [[ ! -d "$TOOLKIT_ROOT/config" ]]; then
+  echo "ERROR: could not find root of overleaf-toolkit project (inferred project root as '$TOOLKIT_ROOT')"
+  exit 1
+fi
+
+function original_user_home() {
+  if [[ -n "${SUDO_USER:-}" ]] && command -v getent >/dev/null 2>&1; then
+    local home
+    home="$(getent passwd "$SUDO_USER" | cut -d: -f6 || true)"
+    if [[ -n "$home" ]]; then
+      echo "$home"
+      return
+    fi
+  fi
+
+  echo "$HOME"
+}
+
+function usage() {
+  echo "Usage: bin/backup-instance [OPTIONS]"
+  echo ""
+  echo "Create a full local Overleaf instance backup archive."
+  echo ""
+  echo "By default this stops the Overleaf services first, then archives config/ and data/."
+  echo "The archive contains local configuration, database files, uploaded project files,"
+  echo "and compile/cache data. Keep it private."
+  echo ""
+  echo "Options:"
+  echo "  -d, --backup-dir DIR   Directory for the generated archive"
+  echo "                         (default: \$OVERLEAF_BACKUP_DIR or ~/Documents/overleaf-backups)"
+  echo "  -o, --output FILE      Exact archive path to write"
+  echo "      --skip-stop        Do not stop services; only use this if they are already stopped"
+  echo "  -h, --help             Show this help"
+  echo ""
+  echo "Examples:"
+  echo "  sudo bin/backup-instance"
+  echo "  sudo bin/backup-instance -o ~/Documents/overleaf-backups/weekend.tar.gz"
+}
+
+function __main__() {
+  local default_backup_dir
+  default_backup_dir="$(original_user_home)/Documents/overleaf-backups"
+
+  local backup_dir="${OVERLEAF_BACKUP_DIR:-$default_backup_dir}"
+  local output_path=""
+  local skip_stop="false"
+
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      -d|--backup-dir)
+        if [[ $# -lt 2 ]]; then
+          echo "ERROR: missing value for $1" >&2
+          exit 1
+        fi
+        backup_dir="$2"
+        shift 2
+        ;;
+      -o|--output)
+        if [[ $# -lt 2 ]]; then
+          echo "ERROR: missing value for $1" >&2
+          exit 1
+        fi
+        output_path="$2"
+        shift 2
+        ;;
+      --skip-stop)
+        skip_stop="true"
+        shift
+        ;;
+      -h|--help|help)
+        usage
+        exit
+        ;;
+      *)
+        echo "ERROR: unrecognized argument '$1'" >&2
+        usage >&2
+        exit 1
+        ;;
+    esac
+  done
+
+  if [[ -z "$output_path" ]]; then
+    mkdir -p "$backup_dir"
+    output_path="$backup_dir/overleaf-instance-$(date +%Y%m%d-%H%M%S).tar.gz"
+  else
+    mkdir -p "$(dirname "$output_path")"
+  fi
+
+  local entries=()
+  if [[ -e "$TOOLKIT_ROOT/config" ]]; then
+    entries+=("config")
+  fi
+  if [[ -e "$TOOLKIT_ROOT/data" ]]; then
+    entries+=("data")
+  fi
+
+  if [[ ${#entries[@]} -eq 0 ]]; then
+    echo "ERROR: neither config/ nor data/ exists under $TOOLKIT_ROOT" >&2
+    exit 1
+  fi
+
+  if [[ "$skip_stop" == "true" ]]; then
+    echo "Skipping service stop. Make sure the Overleaf containers are already stopped."
+  else
+    echo "Stopping Overleaf services..."
+    "$TOOLKIT_ROOT/bin/stop"
+  fi
+
+  echo "Creating backup archive: $output_path"
+  if ! tar -czf "$output_path" -C "$TOOLKIT_ROOT" "${entries[@]}"; then
+    echo "ERROR: backup failed." >&2
+    echo "If this was a permissions error under data/mongo or data/redis, rerun with sudo." >&2
+    exit 1
+  fi
+
+  echo "Backup complete:"
+  echo "$output_path"
+}
+
+__main__ "$@"

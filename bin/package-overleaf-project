@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+project_dir="${1:-/home/intern/Documents/latex-projects/test_internship_3A}"
+zip_path="${2:-$project_dir/overleaf-upload.zip}"
+
+if [[ ! -d "$project_dir" ]]; then
+  echo "Project directory does not exist: $project_dir" >&2
+  exit 1
+fi
+
+if [[ ! -f "$project_dir/main.tex" ]]; then
+  echo "Expected main.tex in: $project_dir" >&2
+  exit 1
+fi
+
+mkdir -p "$(dirname "$zip_path")"
+rm -f "$zip_path"
+
+(
+  cd "$project_dir"
+  zip -r "$zip_path" . \
+    -x '.git/*' \
+    -x '.gitignore' \
+    -x 'overleaf-upload.zip' \
+    -x '*.aux' \
+    -x '*.bbl' \
+    -x '*.blg' \
+    -x '*.fdb_latexmk' \
+    -x '*.fls' \
+    -x '*.log' \
+    -x '*.out' \
+    -x '*.synctex.gz' \
+    -x '*.toc' \
+    -x 'output.pdf' \
+    -x 'output.stdout'
+)
+
+echo "$zip_path"

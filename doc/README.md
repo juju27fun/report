@@ -30,6 +30,7 @@ documentation on the [Overleaf Wiki](https://github.com/overleaf/overleaf/wiki)
 ## Persistent Data
 
 - [Persistent Data Overview](./persistent-data.md)
+- [Weekend Sync](./weekend-sync.md)
 
 
 ## Server Pro

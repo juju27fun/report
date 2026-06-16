@@ -3,6 +3,7 @@
 *.log
 tmp/
 *.swp
+overleaf-instance-*.tar.gz
 
 config/**/*
 !config/.gitkeep

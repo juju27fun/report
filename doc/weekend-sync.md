@@ -74,11 +74,11 @@ cd ~/Documents/overleaf-toolkit
 bin/push-overleaf-latex
 ```
 
-The script exports `test_internship_3A` from the local Overleaf instance into
-`latex/test_internship_3A/`, stages only that directory, commits it when there
-are changes, and pushes the current branch. It leaves `config/`, `data/`,
-backup archives, Docker state, and unrelated toolkit files out of the sync
-commit.
+The script flushes the local Overleaf editor state to Mongo, exports
+`test_internship_3A` into `latex/test_internship_3A/`, stages only that
+directory, commits it when there are changes, and pushes the current branch to
+its upstream remote. It leaves `config/`, `data/`, backup archives, Docker
+state, and unrelated toolkit files out of the sync commit.
 
 Daily direction:
 

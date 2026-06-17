@@ -6,10 +6,13 @@ report remote.
 
 ## Remotes
 
-- `origin` is the personal GitHub repository for this workflow:
-  `git@github.com:juju27fun/report.git`.
+- The personal GitHub repository is `git@github.com:juju27fun/report.git`.
+  Depending on the machine it may be named `origin` or `report`.
+- Push report/workflow changes to the current branch upstream, or explicitly to
+  the personal remote. Do not push personal changes to the official Overleaf
+  Toolkit remote.
 - Do not push `config/`, `data/`, live runtime state, or unrelated toolkit
-  changes to `origin`.
+  changes.
 
 ## Data Boundaries
 
@@ -49,8 +52,8 @@ bin/push-overleaf-latex
 
 This exports the local Overleaf project `test_internship_3A` to
 `latex/test_internship_3A/`, commits only that path, and pushes the current
-branch. If the user asks only to inspect or dry-run the workflow, use
-`bin/push-overleaf-latex --dry-run`.
+branch to its upstream remote. If the user asks only to inspect or dry-run the
+workflow, use `bin/push-overleaf-latex --dry-run`.
 
 ## Full Instance Transfer
 

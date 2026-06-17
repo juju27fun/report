@@ -22,6 +22,7 @@ function usage() {
   echo "Options:"
   echo "  -p, --project NAME   Overleaf project name (default: test_internship_3A)"
   echo "  -d, --dest DIR       Git destination path (default: latex/PROJECT_NAME)"
+  echo "  -r, --remote NAME    Git remote to push (default: current branch upstream)"
   echo "      --dry-run        Export to a temporary directory and do not commit or push"
   echo "      --no-push        Commit locally but do not push"
   echo "  -h, --help           Show this help"
@@ -31,6 +32,7 @@ PROJECT_NAME="${OVERLEAF_PROJECT_NAME:-test_internship_3A}"
 DEST_REL=""
 DRY_RUN="false"
 NO_PUSH="false"
+PUSH_REMOTE="${OVERLEAF_PUSH_REMOTE:-}"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -48,6 +50,14 @@ while [[ $# -gt 0 ]]; do
         exit 1
       fi
       DEST_REL="$2"
+      shift 2
+      ;;
+    -r|--remote)
+      if [[ $# -lt 2 ]]; then
+        echo "ERROR: missing value for $1" >&2
+        exit 1
+      fi
+      PUSH_REMOTE="$2"
       shift 2
       ;;
     --dry-run)
@@ -183,12 +193,24 @@ if [[ -z "$BRANCH" ]]; then
   exit 1
 fi
 
-ORIGIN_PUSH_URL="$(git -C "$GIT_ROOT" remote get-url --push origin)"
-if git -C "$GIT_ROOT" push origin "$BRANCH"; then
+if [[ -z "$PUSH_REMOTE" ]]; then
+  PUSH_REMOTE="$(git -C "$GIT_ROOT" config --get "branch.$BRANCH.remote" || true)"
+fi
+if [[ -z "$PUSH_REMOTE" ]] || [[ "$PUSH_REMOTE" == "." ]]; then
+  PUSH_REMOTE="origin"
+fi
+if ! git -C "$GIT_ROOT" remote get-url "$PUSH_REMOTE" >/dev/null 2>&1; then
+  echo "ERROR: git remote not found: $PUSH_REMOTE" >&2
+  exit 1
+fi
+
+PUSH_URL="$(git -C "$GIT_ROOT" remote get-url --push "$PUSH_REMOTE")"
+echo "Pushing $BRANCH to $PUSH_REMOTE..."
+if git -C "$GIT_ROOT" push "$PUSH_REMOTE" "$BRANCH"; then
   exit
 fi
 
-if [[ "$ORIGIN_PUSH_URL" =~ ^git@github.com:(.+)\.git$ ]] && command -v gh >/dev/null 2>&1 && gh auth status >/dev/null 2>&1; then
+if [[ "$PUSH_URL" =~ ^git@github.com:(.+)\.git$ ]] && command -v gh >/dev/null 2>&1 && gh auth status >/dev/null 2>&1; then
   HTTPS_PUSH_URL="https://github.com/${BASH_REMATCH[1]}.git"
   echo "SSH push failed; retrying with GitHub HTTPS credentials..."
   git -C "$GIT_ROOT" push "$HTTPS_PUSH_URL" "$BRANCH"

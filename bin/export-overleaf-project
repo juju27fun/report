@@ -47,6 +47,35 @@ if ! docker exec mongo mongosh admin --quiet --eval 'db.adminCommand({ ping: 1 }
   echo "ERROR: Mongo container is not reachable. Start Overleaf first with: bin/up -d" >&2
   exit 1
 fi
+if ! docker exec sharelatex true >/dev/null 2>&1; then
+  echo "ERROR: sharelatex container is not reachable. Start Overleaf first with: bin/up -d" >&2
+  exit 1
+fi
+
+# Ensure fresh browser edits are persisted before reading Mongo directly.
+docker exec -i -e PROJECT_NAME="$PROJECT_NAME" sharelatex bash -lc '
+source /etc/overleaf/env.sh || source /etc/sharelatex/env.sh
+source /etc/container_environment.sh
+cd /overleaf/services/web
+node --input-type=module
+' <<'NODE'
+import { Project } from './app/src/models/Project.mjs'
+import DocumentUpdaterHandler from './app/src/Features/DocumentUpdater/DocumentUpdaterHandler.mjs'
+import { gracefulShutdown } from './app/src/infrastructure/GracefulShutdown.mjs'
+
+try {
+  const project = await Project.findOne(
+    { name: process.env.PROJECT_NAME, active: true },
+    { _id: 1 }
+  ).exec()
+  if (!project) {
+    throw new Error(`active Overleaf project not found: ${process.env.PROJECT_NAME}`)
+  }
+  await DocumentUpdaterHandler.promises.flushProjectToMongo(project._id)
+} finally {
+  await gracefulShutdown({ close: done => done() })
+}
+NODE
 
 PAYLOAD_FILE="$(mktemp)"
 trap 'rm -f "$PAYLOAD_FILE"' EXIT
@@ -183,7 +212,7 @@ function exportDoc(folderPath, docRef) {
   }
   const fileName = safeSegment(docRef.name, 'document')
   const lines = Array.isArray(doc.lines) ? doc.lines : []
-  const content = lines.length === 0 ? '' : `${lines.join('\n')}\n`
+  const content = lines.join('\n')
   writeFile(path.join(folderPath, fileName), content)
 }
 

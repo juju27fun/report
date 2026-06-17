@@ -50,6 +50,20 @@ After restoring, open Overleaf and check that you can log in, see the project,
 and compile the report. `bin/doctor` is useful if the restored instance does not
 start cleanly.
 
+## Import Git Sources Into Overleaf
+
+After pulling LaTeX changes from Git, replace the local Overleaf project with:
+
+```sh
+cd ~/Documents/overleaf-toolkit
+git pull
+bin/import-overleaf-latex
+```
+
+The script updates the `test_internship_3A` Overleaf project from
+`latex/test_internship_3A`, removes files that are no longer present in Git, and
+saves a pre-import backup under `~/Documents/overleaf-import-backups/`.
+
 ## Report-Only Alternative
 
 If you only need weekend editing, a separate git repository for the LaTeX report

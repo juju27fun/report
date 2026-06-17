@@ -1,0 +1,169 @@
+#! /usr/bin/env bash
+
+set -euo pipefail
+
+#### Detect Toolkit Project Root ####
+# if realpath is not available, create a semi-equivalent function
+command -v realpath >/dev/null 2>&1 || realpath() {
+  [[ $1 = /* ]] && echo "$1" || echo "$PWD/${1#./}"
+}
+SCRIPT_PATH="$(realpath "${BASH_SOURCE[0]}")"
+SCRIPT_DIR="$(dirname "$SCRIPT_PATH")"
+TOOLKIT_ROOT="$(realpath "$SCRIPT_DIR/..")"
+if [[ ! -d "$TOOLKIT_ROOT/bin" ]] || [[ ! -d "$TOOLKIT_ROOT/config" ]]; then
+  echo "ERROR: could not find root of overleaf-toolkit project (inferred project root as '$TOOLKIT_ROOT')"
+  exit 1
+fi
+
+function usage() {
+  echo "Usage: bin/import-overleaf-latex [OPTIONS]"
+  echo ""
+  echo "Replace a local Overleaf project with files from the Git checkout."
+  echo ""
+  echo "Options:"
+  echo "  -s, --source DIR       Git-side LaTeX directory"
+  echo "                         (default: latex/test_internship_3A)"
+  echo "  -n, --project-name     Overleaf project name to replace"
+  echo "                         (default: test_internship_3A)"
+  echo "  -p, --project-id ID    Overleaf project id to replace"
+  echo "  -b, --backup-dir DIR   Host directory for pre-import project backups"
+  echo "                         (default: ~/Documents/overleaf-import-backups)"
+  echo "      --keep-missing     Do not delete Overleaf files absent from the source"
+  echo "      --dry-run          Show what would change without modifying Overleaf"
+  echo "  -h, --help             Show this help"
+}
+
+function original_user_home() {
+  if [[ -n "${SUDO_USER:-}" ]] && command -v getent >/dev/null 2>&1; then
+    local home
+    home="$(getent passwd "$SUDO_USER" | cut -d: -f6 || true)"
+    if [[ -n "$home" ]]; then
+      echo "$home"
+      return
+    fi
+  fi
+
+  echo "$HOME"
+}
+
+function cleanup_container_tmp() {
+  if [[ -n "${container_tmp:-}" ]]; then
+    docker exec sharelatex rm -rf "$container_tmp" >/dev/null 2>&1 || true
+  fi
+}
+
+function __main__() {
+  local source_dir="$TOOLKIT_ROOT/latex/test_internship_3A"
+  local project_name="test_internship_3A"
+  local project_id=""
+  local backup_dir="$(original_user_home)/Documents/overleaf-import-backups"
+  local delete_missing="true"
+  local dry_run="false"
+
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      -s|--source)
+        if [[ $# -lt 2 ]]; then
+          echo "ERROR: missing value for $1" >&2
+          exit 1
+        fi
+        source_dir="$2"
+        shift 2
+        ;;
+      -n|--project-name)
+        if [[ $# -lt 2 ]]; then
+          echo "ERROR: missing value for $1" >&2
+          exit 1
+        fi
+        project_name="$2"
+        shift 2
+        ;;
+      -p|--project-id)
+        if [[ $# -lt 2 ]]; then
+          echo "ERROR: missing value for $1" >&2
+          exit 1
+        fi
+        project_id="$2"
+        shift 2
+        ;;
+      -b|--backup-dir)
+        if [[ $# -lt 2 ]]; then
+          echo "ERROR: missing value for $1" >&2
+          exit 1
+        fi
+        backup_dir="$2"
+        shift 2
+        ;;
+      --keep-missing)
+        delete_missing="false"
+        shift
+        ;;
+      --dry-run)
+        dry_run="true"
+        shift
+        ;;
+      -h|--help|help)
+        usage
+        exit
+        ;;
+      *)
+        echo "ERROR: unrecognized argument '$1'" >&2
+        usage >&2
+        exit 1
+        ;;
+    esac
+  done
+
+  source_dir="$(cd "$TOOLKIT_ROOT"; realpath "$source_dir")"
+  if [[ ! -d "$source_dir" ]]; then
+    echo "ERROR: source directory does not exist: $source_dir" >&2
+    exit 1
+  fi
+  if [[ ! -f "$source_dir/main.tex" ]]; then
+    echo "ERROR: expected main.tex in source directory: $source_dir" >&2
+    exit 1
+  fi
+  if ! docker ps --format '{{.Names}}' | grep -qx sharelatex; then
+    echo "ERROR: sharelatex container is not running. Start Overleaf with bin/up -d first." >&2
+    exit 1
+  fi
+
+  local backup_path="$backup_dir/${project_name}-before-import-$(date +%Y%m%d-%H%M%S).zip"
+  if [[ "$dry_run" != "true" ]]; then
+    mkdir -p "$backup_dir"
+  fi
+
+  local container_tmp
+  container_tmp="$(docker exec sharelatex mktemp -d /tmp/import-overleaf-latex.XXXXXX)"
+  trap cleanup_container_tmp EXIT
+
+  docker exec sharelatex mkdir -p "$container_tmp/source"
+  docker cp "$source_dir/." "sharelatex:$container_tmp/source/"
+  docker cp "$TOOLKIT_ROOT/lib/import-overleaf-latex.mjs" "sharelatex:$container_tmp/import-overleaf-latex.mjs"
+
+  local args=(
+    "--source" "$container_tmp/source"
+    "--project-name" "$project_name"
+    "--backup" "$container_tmp/before-import.zip"
+  )
+  if [[ -n "$project_id" ]]; then
+    args+=("--project-id" "$project_id")
+  fi
+  if [[ "$delete_missing" == "true" ]]; then
+    args+=("--delete-missing")
+  fi
+  if [[ "$dry_run" == "true" ]]; then
+    args+=("--dry-run")
+  fi
+
+  docker exec sharelatex bash -lc \
+    "source /etc/overleaf/env.sh || source /etc/sharelatex/env.sh; source /etc/container_environment.sh; cd /overleaf/services/web; node '$container_tmp/import-overleaf-latex.mjs' ${args[*]@Q}"
+
+  if [[ "$dry_run" != "true" ]]; then
+    docker cp "sharelatex:$container_tmp/before-import.zip" "$backup_path"
+    echo "Pre-import backup saved to: $backup_path"
+    echo "Reload the Overleaf editor in the browser to see the imported files."
+  fi
+}
+
+__main__ "$@"

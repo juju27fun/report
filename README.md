@@ -21,6 +21,9 @@ Then follow the [Quick Start Guide](./doc/quick-start-guide.md).
 
 See [Documentation Index](./doc/README.md)
 
+Local agent/workflow context for this personal sync setup is in
+[AGENTS.md](./AGENTS.md).
+
 
 ## Contributing
 

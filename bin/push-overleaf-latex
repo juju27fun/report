@@ -1,0 +1,198 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+#### Detect Toolkit Project Root ####
+command -v realpath >/dev/null 2>&1 || realpath() {
+  [[ $1 = /* ]] && echo "$1" || echo "$PWD/${1#./}"
+}
+SCRIPT_PATH="$(realpath "${BASH_SOURCE[0]}")"
+SCRIPT_DIR="$(dirname "$SCRIPT_PATH")"
+TOOLKIT_ROOT="$(realpath "$SCRIPT_DIR/..")"
+if [[ ! -d "$TOOLKIT_ROOT/bin" ]] || [[ ! -d "$TOOLKIT_ROOT/config" ]]; then
+  echo "ERROR: could not find root of overleaf-toolkit project (inferred project root as '$TOOLKIT_ROOT')" >&2
+  exit 1
+fi
+
+function usage() {
+  echo "Usage: bin/push-overleaf-latex [OPTIONS]"
+  echo ""
+  echo "Export the local Overleaf project into Git, commit only that export, and push."
+  echo ""
+  echo "Options:"
+  echo "  -p, --project NAME   Overleaf project name (default: test_internship_3A)"
+  echo "  -d, --dest DIR       Git destination path (default: latex/PROJECT_NAME)"
+  echo "      --dry-run        Export to a temporary directory and do not commit or push"
+  echo "      --no-push        Commit locally but do not push"
+  echo "  -h, --help           Show this help"
+}
+
+PROJECT_NAME="${OVERLEAF_PROJECT_NAME:-test_internship_3A}"
+DEST_REL=""
+DRY_RUN="false"
+NO_PUSH="false"
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -p|--project)
+      if [[ $# -lt 2 ]]; then
+        echo "ERROR: missing value for $1" >&2
+        exit 1
+      fi
+      PROJECT_NAME="$2"
+      shift 2
+      ;;
+    -d|--dest)
+      if [[ $# -lt 2 ]]; then
+        echo "ERROR: missing value for $1" >&2
+        exit 1
+      fi
+      DEST_REL="$2"
+      shift 2
+      ;;
+    --dry-run)
+      DRY_RUN="true"
+      shift
+      ;;
+    --no-push)
+      NO_PUSH="true"
+      shift
+      ;;
+    -h|--help|help)
+      usage
+      exit
+      ;;
+    *)
+      echo "ERROR: unrecognized argument '$1'" >&2
+      usage >&2
+      exit 1
+      ;;
+  esac
+done
+
+if [[ -z "$DEST_REL" ]]; then
+  DEST_REL="latex/$PROJECT_NAME"
+fi
+
+function wait_for_docker() {
+  if docker info >/dev/null 2>&1; then
+    return
+  fi
+
+  if [[ "$(uname -s)" == "Darwin" ]] && command -v open >/dev/null 2>&1; then
+    echo "Docker is not responding; opening Docker Desktop..."
+    open -a Docker || true
+    for _ in {1..60}; do
+      if docker info >/dev/null 2>&1; then
+        return
+      fi
+      sleep 2
+    done
+  fi
+
+  echo "ERROR: Docker daemon is not reachable. Start Docker Desktop and retry." >&2
+  exit 1
+}
+
+function mongo_is_ready() {
+  docker exec mongo mongosh admin --quiet --eval 'db.adminCommand({ ping: 1 }).ok' >/dev/null 2>&1
+}
+
+function ensure_overleaf_is_running() {
+  wait_for_docker
+
+  if mongo_is_ready; then
+    return
+  fi
+
+  echo "Mongo is not reachable; starting Overleaf services..."
+  "$TOOLKIT_ROOT/bin/up" -d
+
+  for _ in {1..60}; do
+    if mongo_is_ready; then
+      return
+    fi
+    sleep 2
+  done
+
+  echo "ERROR: Mongo did not become ready after starting Overleaf." >&2
+  exit 1
+}
+
+ensure_overleaf_is_running
+
+GIT_ROOT="$(git -C "$TOOLKIT_ROOT" rev-parse --show-toplevel)"
+
+if [[ "$DRY_RUN" == "true" ]]; then
+  TMP_DEST="$(mktemp -d)"
+  "$TOOLKIT_ROOT/bin/export-overleaf-project" "$PROJECT_NAME" "$TMP_DEST"
+  echo "Dry run export complete:"
+  find "$TMP_DEST" -maxdepth 3 -type f | sort
+  exit
+fi
+
+case "$DEST_REL" in
+  /*)
+    DEST_ABS="$(node -e 'const path = require("path"); console.log(path.resolve(process.argv[1]))' "$DEST_REL")"
+    ;;
+  *)
+    DEST_ABS="$(node -e 'const path = require("path"); console.log(path.resolve(process.argv[1], process.argv[2]))' "$GIT_ROOT" "$DEST_REL")"
+    ;;
+esac
+
+case "$DEST_ABS/" in
+  "$GIT_ROOT/"*)
+    ;;
+  *)
+    echo "ERROR: destination must be inside git root: $GIT_ROOT" >&2
+    exit 1
+    ;;
+esac
+
+if [[ "$DEST_ABS" == "$GIT_ROOT" ]]; then
+  echo "ERROR: refusing to export over the repository root." >&2
+  exit 1
+fi
+
+DEST_REL="${DEST_ABS#"$GIT_ROOT"/}"
+
+"$TOOLKIT_ROOT/bin/export-overleaf-project" "$PROJECT_NAME" "$DEST_ABS"
+
+if [[ -z "$(git -C "$GIT_ROOT" status --porcelain -- "$DEST_REL")" ]]; then
+  echo "Rien a pousser: aucun changement dans $DEST_REL"
+  exit
+fi
+
+git -C "$GIT_ROOT" add -- "$DEST_REL"
+
+if git -C "$GIT_ROOT" diff --cached --quiet -- "$DEST_REL"; then
+  echo "Rien a pousser: aucun changement indexe dans $DEST_REL"
+  exit
+fi
+
+git -C "$GIT_ROOT" commit -m "Sync Overleaf project $PROJECT_NAME" -- "$DEST_REL"
+
+if [[ "$NO_PUSH" == "true" ]]; then
+  echo "Commit local cree; push saute par --no-push."
+  exit
+fi
+
+BRANCH="$(git -C "$GIT_ROOT" branch --show-current)"
+if [[ -z "$BRANCH" ]]; then
+  echo "ERROR: cannot push from detached HEAD." >&2
+  exit 1
+fi
+
+ORIGIN_PUSH_URL="$(git -C "$GIT_ROOT" remote get-url --push origin)"
+if git -C "$GIT_ROOT" push origin "$BRANCH"; then
+  exit
+fi
+
+if [[ "$ORIGIN_PUSH_URL" =~ ^git@github.com:(.+)\.git$ ]] && command -v gh >/dev/null 2>&1 && gh auth status >/dev/null 2>&1; then
+  HTTPS_PUSH_URL="https://github.com/${BASH_REMATCH[1]}.git"
+  echo "SSH push failed; retrying with GitHub HTTPS credentials..."
+  git -C "$GIT_ROOT" push "$HTTPS_PUSH_URL" "$BRANCH"
+else
+  echo "ERROR: push failed." >&2
+  exit 1
+fi

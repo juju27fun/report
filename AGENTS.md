@@ -6,11 +6,10 @@ report remote.
 
 ## Remotes
 
-- `origin` is the official Overleaf Toolkit repository. Fetch from it only when
-  updating toolkit code.
-- `report` is the personal GitHub repository for this workflow. Push local
-  workflow/report commits there.
-- Do not push personal changes to `origin`.
+- `origin` is the personal GitHub repository for this workflow:
+  `git@github.com:juju27fun/report.git`.
+- Do not push `config/`, `data/`, live runtime state, or unrelated toolkit
+  changes to `origin`.
 
 ## Data Boundaries
 
@@ -22,7 +21,7 @@ report remote.
 
 ## Daily Sync Workflow
 
-When pulling report changes from Git on this machine:
+When pulling report changes from Git into this machine:
 
 ```sh
 cd ~/Documents/overleaf-toolkit
@@ -39,6 +38,19 @@ When exporting Overleaf edits back to Git, use the local export/push workflow if
 available on that machine, then commit only `latex/test_internship_3A/` changes.
 Do not edit `data/overleaf/data/compiles/...` as a synchronization shortcut; it
 is only compile/cache state.
+
+If the user says "envoie mes modifs Overleaf", "push Overleaf", or "sync mon
+latex", run:
+
+```sh
+cd ~/Documents/overleaf-toolkit
+bin/push-overleaf-latex
+```
+
+This exports the local Overleaf project `test_internship_3A` to
+`latex/test_internship_3A/`, commits only that path, and pushes the current
+branch. If the user asks only to inspect or dry-run the workflow, use
+`bin/push-overleaf-latex --dry-run`.
 
 ## Full Instance Transfer
 

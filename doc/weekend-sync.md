@@ -64,6 +64,33 @@ The script updates the `test_internship_3A` Overleaf project from
 `latex/test_internship_3A`, removes files that are no longer present in Git, and
 saves a pre-import backup under `~/Documents/overleaf-import-backups/`.
 
+## Export Overleaf Edits Back To Git
+
+On the machine where the report was edited in the local Overleaf browser,
+export the project and push only the Git-tracked LaTeX sources:
+
+```sh
+cd ~/Documents/overleaf-toolkit
+bin/push-overleaf-latex
+```
+
+The script exports `test_internship_3A` from the local Overleaf instance into
+`latex/test_internship_3A/`, stages only that directory, commits it when there
+are changes, and pushes the current branch. It leaves `config/`, `data/`,
+backup archives, Docker state, and unrelated toolkit files out of the sync
+commit.
+
+Daily direction:
+
+```sh
+# Machine with fresh Overleaf edits
+bin/push-overleaf-latex
+
+# Other machine
+git pull
+bin/import-overleaf-latex
+```
+
 ## Report-Only Alternative
 
 If you only need weekend editing, a separate git repository for the LaTeX report

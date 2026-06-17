@@ -1,0 +1,216 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+#### Detect Toolkit Project Root ####
+command -v realpath >/dev/null 2>&1 || realpath() {
+  [[ $1 = /* ]] && echo "$1" || echo "$PWD/${1#./}"
+}
+SCRIPT_PATH="$(realpath "${BASH_SOURCE[0]}")"
+SCRIPT_DIR="$(dirname "$SCRIPT_PATH")"
+TOOLKIT_ROOT="$(realpath "$SCRIPT_DIR/..")"
+if [[ ! -d "$TOOLKIT_ROOT/bin" ]] || [[ ! -d "$TOOLKIT_ROOT/config" ]]; then
+  echo "ERROR: could not find root of overleaf-toolkit project (inferred project root as '$TOOLKIT_ROOT')" >&2
+  exit 1
+fi
+
+function usage() {
+  echo "Usage: bin/export-overleaf-project [PROJECT_NAME] [DEST_DIR]"
+  echo ""
+  echo "Export a local Overleaf project from MongoDB into regular source files."
+  echo ""
+  echo "Defaults:"
+  echo "  PROJECT_NAME  test_internship_3A"
+  echo "  DEST_DIR      ./latex/PROJECT_NAME"
+}
+
+case "${1:-}" in
+  -h|--help|help)
+    usage
+    exit
+    ;;
+esac
+
+PROJECT_NAME="${1:-test_internship_3A}"
+DEST_DIR="${2:-$TOOLKIT_ROOT/latex/$PROJECT_NAME}"
+CACHE_ROOT="$TOOLKIT_ROOT/data/overleaf/data/cache"
+
+if ! command -v docker >/dev/null 2>&1; then
+  echo "ERROR: docker is required." >&2
+  exit 1
+fi
+if ! command -v node >/dev/null 2>&1; then
+  echo "ERROR: node is required for JSON export processing." >&2
+  exit 1
+fi
+if ! docker exec mongo mongosh admin --quiet --eval 'db.adminCommand({ ping: 1 }).ok' >/dev/null 2>&1; then
+  echo "ERROR: Mongo container is not reachable. Start Overleaf first with: bin/up -d" >&2
+  exit 1
+fi
+
+PAYLOAD_FILE="$(mktemp)"
+trap 'rm -f "$PAYLOAD_FILE"' EXIT
+
+docker exec -e PROJECT_NAME="$PROJECT_NAME" mongo mongosh sharelatex --quiet --eval '
+const projectName = process.env.PROJECT_NAME
+const project = db.projects.findOne({ name: projectName, active: true })
+if (!project) {
+  throw new Error(`active Overleaf project not found: ${projectName}`)
+}
+
+const docs = {}
+db.docs.find({ project_id: project._id }).forEach(doc => {
+  docs[String(doc._id)] = {
+    version: doc.version ?? null,
+    lines: doc.lines || []
+  }
+})
+
+function dateMs(value) {
+  if (!value) return null
+  if (typeof value.valueOf === "function") return value.valueOf()
+  return null
+}
+
+function serializeFolder(folder) {
+  return {
+    name: folder.name,
+    docs: (folder.docs || []).map(doc => ({
+      id: String(doc._id),
+      name: doc.name
+    })),
+    fileRefs: (folder.fileRefs || []).map(file => ({
+      id: String(file._id),
+      name: file.name,
+      hash: file.hash || null,
+      createdMs: dateMs(file.created)
+    })),
+    folders: (folder.folders || []).map(serializeFolder)
+  }
+}
+
+const rootFolder = Array.isArray(project.rootFolder) ? project.rootFolder[0] : project.rootFolder
+if (!rootFolder) {
+  throw new Error(`project has no rootFolder: ${projectName}`)
+}
+
+print(JSON.stringify({
+  project: {
+    id: String(project._id),
+    name: project.name,
+    compiler: project.compiler || null,
+    rootDocId: project.rootDoc_id ? String(project.rootDoc_id) : null
+  },
+  rootFolder: serializeFolder(rootFolder),
+  docs
+}))
+' > "$PAYLOAD_FILE"
+
+node - "$PAYLOAD_FILE" "$DEST_DIR" "$CACHE_ROOT" <<'NODE'
+const fs = require('fs')
+const path = require('path')
+
+const [payloadPath, destDirArg, cacheRootArg] = process.argv.slice(2)
+const payload = JSON.parse(fs.readFileSync(payloadPath, 'utf8'))
+const destDir = path.resolve(destDirArg)
+const cacheRoot = path.resolve(cacheRootArg)
+const projectId = payload.project.id
+
+function fail(message) {
+  console.error(`ERROR: ${message}`)
+  process.exit(1)
+}
+
+function safeSegment(name, kind) {
+  if (typeof name !== 'string' || name.length === 0) {
+    fail(`${kind} has an empty name`)
+  }
+  if (name === '.' || name === '..' || name.includes('/') || name.includes('\\') || name.includes('\0')) {
+    fail(`${kind} has an unsafe name: ${name}`)
+  }
+  return name
+}
+
+function ensureInside(base, target) {
+  const relative = path.relative(base, target)
+  if (relative.startsWith('..') || path.isAbsolute(relative)) {
+    fail(`refusing to write outside destination: ${target}`)
+  }
+}
+
+function writeFile(target, content) {
+  ensureInside(destDir, target)
+  fs.mkdirSync(path.dirname(target), { recursive: true })
+  fs.writeFileSync(target, content)
+}
+
+function copyFile(source, target) {
+  ensureInside(destDir, target)
+  fs.mkdirSync(path.dirname(target), { recursive: true })
+  fs.copyFileSync(source, target)
+}
+
+function findCachedAsset(fileRef) {
+  if (!fileRef.hash) {
+    fail(`file ${fileRef.name} has no hash`)
+  }
+  const projectCacheDir = path.join(cacheRoot, projectId)
+  if (!fs.existsSync(projectCacheDir)) {
+    fail(`cache directory not found: ${projectCacheDir}`)
+  }
+
+  const files = fs.readdirSync(projectCacheDir)
+  const exactSuffix = fileRef.createdMs == null ? null : `-hash-${fileRef.hash}-${fileRef.createdMs}`
+  if (exactSuffix) {
+    const exact = files.find(file => file.endsWith(exactSuffix))
+    if (exact) return path.join(projectCacheDir, exact)
+  }
+
+  const matches = files
+    .filter(file => file.includes(`-hash-${fileRef.hash}-`))
+    .sort()
+    .reverse()
+  if (matches.length === 0) {
+    fail(`cached asset not found for ${fileRef.name} (${fileRef.hash})`)
+  }
+  return path.join(projectCacheDir, matches[0])
+}
+
+function exportDoc(folderPath, docRef) {
+  const doc = payload.docs[docRef.id]
+  if (!doc) {
+    fail(`document not found in docs collection: ${docRef.name} (${docRef.id})`)
+  }
+  const fileName = safeSegment(docRef.name, 'document')
+  const lines = Array.isArray(doc.lines) ? doc.lines : []
+  const content = lines.length === 0 ? '' : `${lines.join('\n')}\n`
+  writeFile(path.join(folderPath, fileName), content)
+}
+
+function exportFile(folderPath, fileRef) {
+  const fileName = safeSegment(fileRef.name, 'file')
+  copyFile(findCachedAsset(fileRef), path.join(folderPath, fileName))
+}
+
+function exportFolder(folder, folderPath, isRoot = false) {
+  const currentPath = isRoot
+    ? folderPath
+    : path.join(folderPath, safeSegment(folder.name, 'folder'))
+  ensureInside(destDir, currentPath)
+  fs.mkdirSync(currentPath, { recursive: true })
+
+  for (const docRef of folder.docs || []) exportDoc(currentPath, docRef)
+  for (const fileRef of folder.fileRefs || []) exportFile(currentPath, fileRef)
+  for (const child of folder.folders || []) exportFolder(child, currentPath)
+}
+
+if (!payload.project || !payload.rootFolder || !payload.docs) {
+  fail('invalid payload from MongoDB')
+}
+
+fs.rmSync(destDir, { recursive: true, force: true })
+fs.mkdirSync(destDir, { recursive: true })
+exportFolder(payload.rootFolder, destDir, true)
+
+console.log(`Exported ${payload.project.name} to ${destDir}`)
+NODE

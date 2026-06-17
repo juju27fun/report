@@ -1,0 +1,108 @@
+\begin{titlepage}
+    \raggedright % Elements will be left-aligned by default unless specified otherwise
+
+    % --- Top Left: Company Logo ---
+    % The model indicates "Company logo" at the top left.
+    % Your lab logo path is Lade_logo.png
+    \noindent % Ensures no indentation
+    \begin{minipage}[t]{0.35\textwidth} % First minipage (left element)
+    \flushleft % Aligns content to the left within this minipage
+    \includegraphics[width=\linewidth]{logo/logo.png}
+\end{minipage}% <--- IMPORTANT: No space or newline here ensures they stay on the same line
+\hfill % This will push the two minipages to the extremes of the line (left and right)
+\begin{minipage}[t]{0.5\textwidth} % Second minipage (right element)
+    % Adjust width as needed. The sum of widths should be <= \textwidth
+    \flushright % Aligns content to the right within this minipage
+    \includegraphics[width=\linewidth]{logo/oasis_laas_logo.png}
+\end{minipage}
+    
+
+    \vspace{2cm} % Space after company logo section
+
+    % --- Student, Master, Year ---
+    % As per the model structure
+\begin{center}
+        \noindent Student: Julien LE BOULCH \\
+    \noindent Stream:  {Biomedical ingeneering} \\
+    \noindent Year:  {2025-2026} \\
+
+    \vspace{1.5cm} % Space after student info
+
+    % --- Company Name and Address ---
+    % As per the model structure
+    \noindent Laboratory name:  {LAAS-CNRS} \\
+    \noindent Laboratory address:  {2 Rue Charles Camichel, 31000 Toulouse} \\
+
+\end{center}
+    \vspace{2cm} % Space before the main title
+
+    % --- Title of the Internship ---
+    % Centered and prominent, with the label from the model
+    \begin{center}
+        %{\Large \textsc{Appendix}} \\ % Label as in the model
+        \vspace{0.3cm} % Small space between label and actual title
+        {\Huge \textbf{Assessing the need for transformer architecture in 1D data analysis for embedded systems, in the case of flow cytometry by self mixing interferometry}} \\ % Your specific title
+    \end{center}
+
+    \vspace{0.5cm} % Space after title
+
+    % --- Internship Dates ---
+    % Centered, in the format specified by the model
+    \begin{center}
+        from  {05/26/2025} to  {08/10/2025} \\
+    \end{center}
+
+    \vspace{1cm} % Space after dates
+
+    % --- Optional Image ---
+    % The model shows "Image (optional)" centered.
+    % Uncomment the following lines and replace placeholder if you have an optional image.
+    % \begin{center}
+    %     \includegraphics[width=0.45\textwidth]{ {path/to/your/optional_image.png}}
+    % \end{center}
+    % \vspace{1cm} % Space after optional image
+
+    \vfill % This command pushes the content below it towards the bottom of the page.
+
+    % --- Supervision Details ---
+    % Left-aligned, as per model structure
+    \noindent \textbf{Under the supervision of:} 
+    \begin{itemize}
+        \item Lab supervisor: Julien Perchoux,  {julien.perchoux@laas.fr}
+    \item Phelma Tutor:  {Dawood Al Chanti},  {Dawood.Al-Chanti@gipsa-lab.grenoble-inp.fr}
+
+    \end{itemize}
+    \vspace{1.5cm} % Space before confidentiality
+
+    % --- Confidentiality ---
+    % Left-aligned
+\raggedleft
+ \textbf{Confidentiality:}  {No} 
+     
+\raggedright
+    \vspace{1cm} % Add some flexible space before the absolute bottom Phelma block
+                 % \vfill already pushed this section down, this adds to that separation if needed.
+
+    % --- Phelma Information (Bottom Left) ---
+    % This block is positioned at the bottom left of the page.
+    \par % Ensures we are in a new paragraph before the minipage
+    \begin{minipage}[b]{0.5\textwidth} % Creates a box for the Phelma info, aligned at bottom
+        \flushleft % Content within this box is left-aligned
+        \small % Use a smaller font size for this footer-like information
+
+        % The model includes the PHELMA logo image above the text.
+        % If you have the Phelma logo image (e.g., phelma_logo.png), uncomment the next line:
+        % \includegraphics[height=1.2cm]{ {path/to/phelma_logo.png}}
+        % \vspace{0.2cm} % Space between Phelma logo and text
+
+        \textbf{École nationale supérieure de physique, électronique, matériaux} \\[0.2em]
+        \textbf{Phelma} \\[0.5em]
+        Bt. Grenoble INP - Minatec \\
+        3 Parvis Louis Nel - CS 50257 \\
+        F-38016 Grenoble Cedex 01 \\[0.5em]
+        Tél +33 (0)4 56 52 91 00 \\
+        Fax +33 (0)4 56 52 91 03 \\[0.5em]
+        http://phelma.grenoble-inp.fr
+    \end{minipage}
+
+\end{titlepage}

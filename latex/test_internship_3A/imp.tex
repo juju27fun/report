@@ -1,0 +1,188 @@
+% =============================================================================
+% FICHIER DE PRÉAMBULE : imp.tex
+% Charger avec \input{Imp} dans le document principal
+% =============================================================================
+
+% -----------------------------------------------------------------------------
+% 1. GÉOMÉTRIE ET ENCODAGE DU DOCUMENT
+% -----------------------------------------------------------------------------
+\usepackage[utf8]{inputenc} % Indispensable pour gérer les accents
+\usepackage[T1]{fontenc}    % Encodage de police moderne pour un meilleur rendu PDF et césures
+\usepackage[english]{babel} % Gestion des règles typographiques anglaises
+
+% Contrôle précis des marges. Remplace et est supérieur à \usepackage{fullpage}
+\usepackage[a4paper, top=2cm, bottom=2cm, left=2cm, right=2cm]{geometry}
+
+% -----------------------------------------------------------------------------
+% 2. TYPOGRAPHIE ET MISE EN PAGE
+% -----------------------------------------------------------------------------
+\usepackage{titling}    % Pour personnaliser \maketitle
+\usepackage{fancyhdr}   % Pour personnaliser les en-têtes et pieds de page
+\usepackage{wrapfig}    % Pour que le texte s'enroule autour des images
+\usepackage{booktabs}   % Pour créer de beaux tableaux professionnels (\toprule, \midrule, \bottomrule)
+\usepackage{array}      % Améliore la définition des colonnes de tableau
+\usepackage{tabularx}   % Tableaux avec colonnes X pour auto-wrapping
+\usepackage{enumitem}   % Pour un contrôle avancé sur les listes (enumerate, itemize)
+\usepackage{subcaption} % Pour créer des sous-figures (subfigure) et sous-tableaux
+\usepackage{placeins}   % Fournit la commande \FloatBarrier pour contrôler le placement des flottants
+\usepackage{multirow} % Pour fusionner des lignes dans les tableaux
+\usepackage[table]{xcolor}
+\usepackage{seqsplit}
+% Supprime l'indentation de la première ligne de chaque paragraphe
+\setlength{\parindent}{0pt}
+
+
+
+% Configuration de l'en-tête (dépend de fancyhdr et graphicx)
+\pagestyle{fancy}
+\fancyhf{} % Nettoie les champs de l'en-tête et du pied de page
+\fancyhead[L]{Internship research engineer \\ 1D transformer for embedded systems: flow cytometry by self mixing interferometry} % Utiliser \\ pour un saut de ligne
+\fancyhead[R]{\includegraphics[scale=0.65]{logo/logo.png}}
+\renewcommand{\headrulewidth}{0.4pt} % Ajoute une ligne de séparation
+
+% -----------------------------------------------------------------------------
+% 3. MATHÉMATIQUES ET UNITÉS
+% -----------------------------------------------------------------------------
+\usepackage{amsmath}  % Améliorations majeures pour les environnements mathématiques
+\usepackage{amssymb}  % Symboles mathématiques supplémentaires
+\usepackage{siunitx}  % Pour écrire les unités et nombres correctement (ex: \SI{10}{\micro\litre})
+\usepackage{systeme}  % Pour écrire facilement des systèmes d'équations
+
+% -----------------------------------------------------------------------------
+% 4. GRAPHIQUES, COULEURS ET BLOCS DE TEXTE
+% -----------------------------------------------------------------------------
+\usepackage{graphicx}   % Pour inclure des images (\includegraphics)
+\usepackage{xcolor}     % Gestion avancée des couleurs (remplace l'ancien paquet 'color')
+\usepackage[absolute]{textpos} % Positionnement absolu de blocs de texte
+\usepackage{tcolorbox}  % Pour créer des boîtes colorées et stylisées
+\tcbuselibrary{listings, skins, breakable} % Charge les bibliothèques de tcolorbox
+
+% Définition de couleurs personnalisées
+\colorlet{Mycolor1}{green!10!orange}
+\definecolor{darkWhite}{rgb}{0.94,0.94,0.94}
+
+% -----------------------------------------------------------------------------
+% 5. GESTION DU CODE SOURCE (LISTINGS)
+% -----------------------------------------------------------------------------
+\usepackage{listings} % Pour afficher du code source
+
+% Configuration globale de `listings`
+\lstset{
+    language=C,
+    backgroundcolor=\color{darkWhite},
+    commentstyle=\color{red},
+    keywordstyle=\color{blue},
+    stringstyle=\color{gray},
+    breaklines=true,
+    breakatwhitespace=false,
+    keepspaces=true,
+    showstringspaces=false,
+    extendedchars=true,
+    captionpos=b,
+    tabsize=4,
+    title=\lstname,
+}
+
+% Style personnalisé pour les blocs de code (utilisé par tcolorbox)
+\lstdefinestyle{frameStyle}{
+    basicstyle=\footnotesize\ttfamily, % Utiliser une police à chasse fixe
+    numbers=left,
+    numbersep=10pt,
+    numberstyle=\tiny\color{black}
+}
+
+% Définition d'un environnement `tcolorbox` personnalisé pour le code
+\newtcblisting{customFrame}{
+    listing only,
+    breakable,
+    arc=0mm,
+    boxrule=0.5pt, % Ajouter un cadre fin
+    colback=darkWhite,
+    listing options={style=frameStyle},
+}
+
+% ----- Convenience column type for tabularx used in the document -----
+\newcolumntype{Y}{>{\raggedright\arraybackslash}X}
+
+% ----- Safe "blankest" tcolorbox style used throughout the document -----
+\tcbset{
+  blankest/.style={
+    enhanced,
+    frame hidden,
+    boxsep=0pt,
+    left=0pt,right=0pt,top=0pt,bottom=0pt,
+    sharp corners
+  }
+}
+
+% ----- Ensure the protocol style uses the correct key for title background -----
+% (redefining here will override the earlier definition and avoid passing unknown
+% keys down to tikz/pgf)
+\tcbset{
+  protocol/.style={
+    enhanced,
+    colframe=protocolFrame,
+    colback=protocolBack,
+    boxrule=0.8pt,
+    sharp corners,
+    arc=2mm,
+    left=8pt,right=8pt,top=8pt,bottom=8pt,
+    fonttitle=\bfseries,
+    colbacktitle=white,
+    sidebyside,
+    sidebyside align=top seam,
+    sidebyside gap=10pt
+  }
+}
+% -----------------------------------------------------------------------------
+% 6. ANNEXES ET LIENS HYPERTEXTE (À CHARGER EN DERNIER)
+% -----------------------------------------------------------------------------
+\usepackage[toc]{appendix} % Gestion des annexes
+
+% Le paquet hyperref doit être chargé le plus tard possible
+\usepackage{hyperref}
+\hypersetup{
+    colorlinks=true,
+    linkcolor=blue,
+    citecolor=green,
+    filecolor=magenta,
+    urlcolor=cyan,
+    pdftitle={Internship Report}, % Ajout de métadonnées pour le PDF
+    pdfauthor={Your Name}      % Ajout de métadonnées pour le PDF
+}
+
+\sisetup{detect-all,product-units=single}
+
+\definecolor{protocolGreen}{RGB}{166,206,142}
+\definecolor{protocolRed}{RGB}{219,77,86}
+\definecolor{protocolFrame}{RGB}{40,60,80}
+\definecolor{protocolBack}{RGB}{245,248,251}
+
+% Carte protocole prête à l'emploi (deux colonnes)
+% (Keep a single, safe definition of `protocol` above; avoid passing `title style`
+% with `colback` which triggers pgfkeys errors.)
+% (No duplicate re-definition here.)
+
+\tcbset{
+  dna/.style={
+    colback=gray!4, colframe=gray!50,
+    boxrule=0.4pt, arc=1mm, left=2mm, right=2mm, top=1mm, bottom=1mm
+  },
+  prot/.style={
+    colback=gray!6, colframe=gray!60,
+    boxrule=0.4pt, arc=1mm, left=2mm, right=2mm, top=1mm, bottom=1mm
+  }
+}
+
+\definecolor{protocolBack}{RGB}{245,248,251}
+\definecolor{mutbg}{RGB}{255,210,230}   % pour la lettre mutée
+\definecolor{motifbg}{RGB}{255,245,180} % pour les motifs surlignés
+
+\setlist[itemize]{nosep,leftmargin=1.2em}
+\setlist[enumerate]{nosep,leftmargin=1.2em,label=\arabic*.}
+
+% Définition de la commande Keywords
+\providecommand{\keywords}[1]{
+  \vspace{0.5cm}
+  \noindent\textbf{\textit{Keywords ---}} #1
+}

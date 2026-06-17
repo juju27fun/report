@@ -1,0 +1,62 @@
+\documentclass{article}
+
+
+\input{Imp} 
+
+
+\begin{document}
+
+\input{mep}
+
+\tableofcontents
+
+\newpage
+
+\begin{abstract}
+In this context we decided to study this using the following method that yields the following result.
+\end{abstract}
+
+\keywords{Deep learning, Transformer, Embedded AI, Self-mixing Interferometry}
+\section{Introduction}
+
+\subsection{why is this project useful in the gran skim of things}
+Whether it is the reaction of a cell to light exposure, or the economic state of a country A system can always be seen as inputs and outputs. To study a system the idea is to study the in output's variations with regards to the input's modulation. Data analysis stems from this principle. By massively increasing the amount of input and outputs analyzable, we can drastically increase our understanding of systems and solve problems that weren't solvable before. This is why every year data seems more and more important, and it has made its way into every aspect of the world (politics, every day life, industry). Those data can take multiple forms, from the most simple (1D vectors from sensors) to the most complex (N dimensional tensors). Most of the current deep learning work is on vision: 2D images (vit, CNN). However most of the data collected each day is produced by sensors which typically generate 1D vectors. This opens the door to a great field of research with many industrial application: 1D deep learning processing. Still, in this field, most of the work is done on forecast. While it is useful for supply chain optimization, smart energy grid balancing, and dynamic retail pricing, however to study a system the most important is to be able to analyse the data and process it (not forecasting future data that we will capture anyway), for example in probing or quality control. In data analysis sometimes the processing algorithms turns into a nightmare, it could be because the physical or chemical model is wrong, or because noise is too strong, and many other reasons. In those cases, deep learning becomes interesting because allows you to find back the laws of the system without proper system modelisation, but instead with a process of building a deep learning pipeline, which in our case is called a model. Those models are black boxes that ideally allow to see through data measurement shifts and understand the general idea of the system.
+
+\subsection{machine learning}
+Machine learning is an AI approach where a machine (hardware + software) is able to learn from input data. The most known form of this being linear regression. You give a set of points to the machine, and it learns how to reconstruction the most likely linear relationship between your 2 variables. Note that this algorythmical approach is somewhat empirical. machine learning extends in different subdomains, one of which being deep learning. This sub-branch of machine learning refers to any model that relies on artificial neural networks. Neural networks can be seen as a succession of linear functions followed by activation functions which are not linear. Those layers are often called MLP (multilayer perceptron), dense layers or fully. Because of the complexity of tasks involved in this work, most of the machine learning will involve neural networks. More advanced structured will be used, such ass Convolutional Neural Networks (CNN). Those are neural networks that were design to first try to grasp more advanced concept in an image while diminshing the size of the data taht will be used as inout in the MLP. those are particularly useful for image processing to grasps the concepts of edges and local geometrical patterns. These architectures rely on convolutional kernels. Those are matrices that are convoluted to the image to produce new representations of the information. those are by definition limited by their sizes. A kernel is typically in image processing of a size of 3 by 3. This means that the information that correlated through convolutions are mainly local informations. This is why in this paper we will use Transformer encoder architectures as well. The transformer architecture is much more complex. It revolves around the mechanism of attention. This mechanism is a mainly composed of matrices mutliplications and a series of transformations such as Batch Norm and Position-wise Feed-Forward Network. The input is "tokenized" into a vector space. those vectors are then organized in a matrice that will go through the attention mechnism. Then it is up to the user to find what they want to exploit out of this transformer encoder. for forecasting it is useful to use the decoder as well as the encoder, for classifcation, it is possible to just take the final output matrice of those highly modified embeddings to use them as input for a MLP. in this case the transformer encoder acts as a feature extractor for our MLP, just like the concolutions in a CNN allow to encode the data into a useful representation which can be called a feature space, or latent space.
+
+\subsection{Embedded systems for data processing and deep learning}
+
+
+
+\section{Objective}
+The objective of this study is to evaluate the viability of 1D Transformers for particle classification, detection, and segmentation in SMI flow cytometry. Specifically, it aims to determine whether Transformer-based approaches offer a definitive advantage over simpler architectures, such as CNNs, for 1D signal processing in embedded / Edge AI systems.
+
+\section{Flow cytometry and data acquisition of SMI signal}
+
+\section{Sebaspipeline + general sota analysis 1 D pipleines}
+% preprocessing heavy, divided in sequential steps, time domain ability, results and limitation
+
+\section{My classif}
+%conv1D-GAP, XAI OOD tsne etc, selection model zoo, embeddability
+
+\section{Detection + segmebntation}
+% pipeline attemps and adaptation, attempts etc
+% results and discussion
+
+\section{Yeast}
+% the problem of anisotropy, the new theoretical fitting model, attempts and results
+
+\section{Self supervised learning}
+% why is it needed here, interest for yeast, pipelien justification etc
+
+% autre version plus strong, à utiliser seulement si nos résultats sont positifs et permettent d'avoir une conclusion positive
+% This research aims to benchmark 1D Transformers against standard CNNs for SMI flow cytometry tasks (particle classification, detection, and segmentation). The goal is to determine if the performance gains of Transformer-based models justify their integration into embedded systems for edge AI applications.
+
+\section{conclusion}
+\subsection{limitation}
+for supervised learning: annotation of labels and time boxes arre sketchy, we in fact cannot be sure of what we are labelizing, since no protocole was done to make sure the groud truth were 100\% accurate. We would have had to use other lasers, or a well designed camera settings (even if we tried to do it but particles were not so easily detectable
+
+yeast data introduce anisotropism since they are not exactly spherical. Any tombelling movement in 3D may lead to a set a varaition that wasn't seen on previous signals, which may lead to more data required to learn particles patterns.
+
+\end{document}

@@ -37,8 +37,13 @@ The objective of this study is to evaluate the viability of 1D Transformers for 
 \section{Sebaspipeline + general sota analysis 1 D pipleines}
 % preprocessing heavy, divided in sequential steps, time domain ability, results and limitation
 
-\section{My classif}
+\section{Classification: CNN limitations}
 %conv1D-GAP, XAI OOD tsne etc, selection model zoo, embeddability
+
+In this part, we will assess the CNN limitations. On the long run, the objective of the whole project is to be able to detect and classify in real time any particle that is in the flux crossing the laser beam. it may sound simple but it implies to have some sort of real time analysis in the model, to be able to know when a particle crosses or when the signal is due to noise, then to classify the particles. it also needs to be adaptable to the hardeware disponible and adaptable to the data itself (input size, generalization etc).
+
+\subsection{OOD}
+OOD means out of distribution analysis. This is useful to assess if a model is able to see a certain set of data as different from the data it was trained to classify on. When building a classifier, you design the classes and the training to fit for a specific purpose. If you try to put data that is out of the original realm of input, the calssifying head is still forced to classify it as one of the original class. However the way the model actually sees the information my actually be right. the model can possibility see that the input is very different rom normal classes, this will clearly appear in its latent space. The latent space is the space where the feature extracted by the model are represented.
 
 \section{Detection + segmebntation}
 % pipeline attemps and adaptation, attempts etc
